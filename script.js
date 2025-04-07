@@ -22,6 +22,7 @@ let currentUsers = [];
 let roomUnsubscribe = null;
 let usersUnsubscribe = null;
 let currentUserId = null;
+let lastVideoUrl = '';
 
 // Elementos DOM
 const elements = {
@@ -34,7 +35,8 @@ const elements = {
     ytPlayerContainer: document.getElementById('ytPlayer'),
     status: document.getElementById('status'),
     syncStatus: document.getElementById('syncStatus'),
-    userList: document.getElementById('userList')
+    userList: document.getElementById('userList'),
+    userCount: document.getElementById('userCount')
 };
 
 // Inicialização do Player do YouTube
@@ -42,6 +44,13 @@ function onYouTubeIframeAPIReady() {
     ytPlayer = new YT.Player('ytPlayer', {
         height: '100%',
         width: '100%',
+        playerVars: {
+            'autoplay': 0,
+            'controls': 1,
+            'rel': 0,
+            'showinfo': 0,
+            'modestbranding': 1
+        },
         events: {
             'onReady': onPlayerReady,
             'onStateChange': onPlayerStateChange
@@ -57,23 +66,27 @@ function onPlayerStateChange(event) {
     if (!currentRoomId || isSyncing) return;
     
     isSyncing = true;
-    elements.syncStatus.textContent = "Sincronizando...";
+    setSyncStatus("Sincronizando...");
+    
+    const currentTime = ytPlayer.getCurrentTime();
     
     if (event.data == YT.PlayerState.PLAYING) {
         db.collection("rooms").doc(currentRoomId).update({
             isPlaying: true,
+            currentTime: currentTime,
             lastUpdated: firebase.firestore.FieldValue.serverTimestamp()
         });
     } else if (event.data == YT.PlayerState.PAUSED) {
         db.collection("rooms").doc(currentRoomId).update({
             isPlaying: false,
+            currentTime: currentTime,
             lastUpdated: firebase.firestore.FieldValue.serverTimestamp()
         });
     }
     
     setTimeout(() => {
         isSyncing = false;
-        elements.syncStatus.textContent = "Sincronizado";
+        setSyncStatus("Sincronizado");
     }, 1000);
 }
 
@@ -93,11 +106,16 @@ function createRoom() {
         videoType: "",
         isPlaying: false,
         currentTime: 0,
-        lastUpdated: firebase.firestore.FieldValue.serverTimestamp()
+        lastUpdated: firebase.firestore.FieldValue.serverTimestamp(),
+        createdAt: firebase.firestore.FieldValue.serverTimestamp()
     }).then(() => {
         addUserToRoom();
         updateStatus(`Sala criada: ${currentRoomId}`);
+        showNotification(`Sala ${currentRoomId} criada com sucesso!`);
         syncRoom(currentRoomId);
+    }).catch(error => {
+        console.error("Erro ao criar sala:", error);
+        updateStatus("Erro ao criar sala");
     });
 }
 
@@ -105,33 +123,48 @@ function joinRoom() {
     currentRoomId = elements.roomId.value.trim();
     currentUserId = generateUserId();
     
-    if (!currentRoomId) return alert("Digite um ID de sala!");
+    if (!currentRoomId) {
+        showNotification("Digite um ID de sala!", true);
+        return;
+    }
     
     db.collection("rooms").doc(currentRoomId).get().then((doc) => {
-        if (!doc.exists) return alert("Sala não encontrada!");
+        if (!doc.exists) {
+            showNotification("Sala não encontrada!", true);
+            return;
+        }
         
         addUserToRoom();
         updateStatus(`Conectado à sala: ${currentRoomId}`);
+        showNotification(`Você entrou na sala ${currentRoomId}`);
         syncRoom(currentRoomId);
+    }).catch(error => {
+        console.error("Erro ao entrar na sala:", error);
+        updateStatus("Erro ao entrar na sala");
     });
 }
 
 function addUserToRoom() {
-    const userName = `Usuário ${Math.floor(Math.random() * 1000)}`;
+    const userName = `Usuário${Math.floor(Math.random() * 1000)}`;
     
     db.collection("rooms").doc(currentRoomId).collection("users").doc(currentUserId).set({
         id: currentUserId,
         name: userName,
-        joinedAt: firebase.firestore.FieldValue.serverTimestamp()
+        joinedAt: firebase.firestore.FieldValue.serverTimestamp(),
+        lastActive: firebase.firestore.FieldValue.serverTimestamp()
     });
 }
 
 function loadVideoHandler() {
     const videoURL = elements.videoLink.value.trim();
-    if (!videoURL) return alert("Digite um link válido!");
+    if (!videoURL) {
+        showNotification("Digite um link válido!", true);
+        return;
+    }
 
     if (!isValidVideoUrl(videoURL)) {
-        return alert("Link de vídeo inválido! Use YouTube ou links MP4 diretos.");
+        showNotification("Link de vídeo inválido! Use YouTube ou links MP4 diretos.", true);
+        return;
     }
 
     if (isYouTubeVideo(videoURL)) {
@@ -147,6 +180,11 @@ function loadVideoHandler() {
             videoURL: videoURL,
             videoType: currentVideoType,
             lastUpdated: firebase.firestore.FieldValue.serverTimestamp()
+        }).then(() => {
+            showNotification("Vídeo carregado com sucesso!");
+        }).catch(error => {
+            console.error("Erro ao atualizar vídeo:", error);
+            showNotification("Erro ao carregar vídeo", true);
         });
     }
 }
@@ -165,12 +203,30 @@ function syncRoom(roomId) {
         if (isSyncing) return;
         
         // Sincroniza o vídeo
-        if (data.videoURL && data.videoURL !== elements.videoLink.value) {
+        if (data.videoURL && data.videoURL !== lastVideoUrl) {
+            lastVideoUrl = data.videoURL;
             elements.videoLink.value = data.videoURL;
+            
             if (data.videoType === 'youtube') {
                 loadYouTubeVideo(data.videoURL);
-            } else {
+            } else if (data.videoType === 'mp4') {
                 loadMP4Video(data.videoURL);
+            }
+        }
+
+        // Sincroniza o tempo do vídeo
+        if (data.currentTime !== undefined) {
+            if (currentVideoType === 'mp4' && Math.abs(elements.videoPlayer.currentTime - data.currentTime) > 1) {
+                isSyncing = true;
+                elements.videoPlayer.currentTime = data.currentTime;
+                setTimeout(() => { isSyncing = false; }, 500);
+            } else if (currentVideoType === 'youtube' && ytPlayer.getCurrentTime) {
+                const ytTime = ytPlayer.getCurrentTime();
+                if (Math.abs(ytTime - data.currentTime) > 1) {
+                    isSyncing = true;
+                    ytPlayer.seekTo(data.currentTime, true);
+                    setTimeout(() => { isSyncing = false; }, 500);
+                }
             }
         }
 
@@ -192,6 +248,8 @@ function syncRoom(roomId) {
             }
             lastSyncTime = now;
         }
+    }, (error) => {
+        console.error("Erro no listener da sala:", error);
     });
 
     // Listener para usuários
@@ -211,12 +269,14 @@ function syncRoom(roomId) {
             
             currentUsers = updatedUsers;
             updateUserList(updatedUsers);
+        }, (error) => {
+            console.error("Erro no listener de usuários:", error);
         });
 }
 
 // Funções auxiliares
 function generateRoomId() {
-    return Math.random().toString(36).substring(2, 8);
+    return Math.random().toString(36).substring(2, 8).toUpperCase();
 }
 
 function generateUserId() {
@@ -226,6 +286,17 @@ function generateUserId() {
 function updateStatus(message) {
     elements.status.textContent = message;
     console.log(message);
+}
+
+function setSyncStatus(status) {
+    elements.syncStatus.textContent = status;
+    elements.syncStatus.querySelector('span').textContent = status;
+    
+    if (status === "Sincronizando...") {
+        elements.syncStatus.classList.add('syncing');
+    } else {
+        elements.syncStatus.classList.remove('syncing');
+    }
 }
 
 function isYouTubeVideo(url) {
@@ -247,7 +318,10 @@ function extractYouTubeId(url) {
 
 function loadYouTubeVideo(url) {
     const videoId = extractYouTubeId(url);
-    if (!videoId) return alert("Link do YouTube inválido!");
+    if (!videoId) {
+        showNotification("Link do YouTube inválido!", true);
+        return;
+    }
 
     elements.ytPlayerContainer.style.display = "block";
     elements.videoPlayer.style.display = "none";
@@ -276,21 +350,37 @@ function pauseVideo() {
     elements.videoPlayer.pause();
 }
 
-function showNotification(message) {
+function showNotification(message, isError = false) {
     const notification = document.createElement('div');
     notification.className = 'notification';
     notification.textContent = message;
+    
+    if (isError) {
+        notification.style.backgroundColor = '#ff6b81';
+    }
+    
     document.body.appendChild(notification);
     
     setTimeout(() => {
-        notification.remove();
+        notification.style.animation = 'slideIn 0.3s reverse forwards';
+        setTimeout(() => {
+            notification.remove();
+        }, 300);
     }, 3000);
 }
 
 function updateUserList(users) {
+    if (users.length === 0) {
+        elements.userList.innerHTML = '<div class="empty-state">Nenhum usuário na sala</div>';
+        elements.userCount.textContent = '0';
+        return;
+    }
+    
     elements.userList.innerHTML = users.map(user => 
         `<div class="user">${user.name}</div>`
     ).join('');
+    
+    elements.userCount.textContent = users.length;
 }
 
 // Event listeners para vídeo MP4
@@ -298,7 +388,7 @@ elements.videoPlayer.addEventListener('play', () => {
     if (!currentRoomId || isSyncing || currentVideoType !== 'mp4') return;
     
     isSyncing = true;
-    elements.syncStatus.textContent = "Sincronizando...";
+    setSyncStatus("Sincronizando...");
     
     db.collection("rooms").doc(currentRoomId).update({
         isPlaying: true,
@@ -306,7 +396,10 @@ elements.videoPlayer.addEventListener('play', () => {
         lastUpdated: firebase.firestore.FieldValue.serverTimestamp()
     }).then(() => {
         isSyncing = false;
-        elements.syncStatus.textContent = "Sincronizado";
+        setSyncStatus("Sincronizado");
+    }).catch(error => {
+        console.error("Erro ao sincronizar play:", error);
+        isSyncing = false;
     });
 });
 
@@ -314,7 +407,7 @@ elements.videoPlayer.addEventListener('pause', () => {
     if (!currentRoomId || isSyncing || currentVideoType !== 'mp4') return;
     
     isSyncing = true;
-    elements.syncStatus.textContent = "Sincronizando...";
+    setSyncStatus("Sincronizando...");
     
     db.collection("rooms").doc(currentRoomId).update({
         isPlaying: false,
@@ -322,16 +415,28 @@ elements.videoPlayer.addEventListener('pause', () => {
         lastUpdated: firebase.firestore.FieldValue.serverTimestamp()
     }).then(() => {
         isSyncing = false;
-        elements.syncStatus.textContent = "Sincronizado";
+        setSyncStatus("Sincronizado");
+    }).catch(error => {
+        console.error("Erro ao sincronizar pause:", error);
+        isSyncing = false;
     });
 });
 
 // Atualização periódica do tempo
 setInterval(() => {
-    if (!currentRoomId || isSyncing || currentVideoType !== 'mp4' || elements.videoPlayer.paused) return;
+    if (!currentRoomId || isSyncing) return;
+    
+    let currentTime;
+    if (currentVideoType === 'mp4' && !elements.videoPlayer.paused) {
+        currentTime = elements.videoPlayer.currentTime;
+    } else if (currentVideoType === 'youtube' && ytPlayer.getPlayerState() === YT.PlayerState.PLAYING) {
+        currentTime = ytPlayer.getCurrentTime();
+    } else {
+        return;
+    }
     
     db.collection("rooms").doc(currentRoomId).update({
-        currentTime: elements.videoPlayer.currentTime,
+        currentTime: currentTime,
         lastUpdated: firebase.firestore.FieldValue.serverTimestamp()
     });
 }, 3000);
@@ -342,3 +447,30 @@ window.addEventListener('beforeunload', () => {
         db.collection("rooms").doc(currentRoomId).collection("users").doc(currentUserId).delete();
     }
 });
+
+// Atualiza última atividade do usuário periodicamente
+setInterval(() => {
+    if (currentRoomId && currentUserId) {
+        db.collection("rooms").doc(currentRoomId).collection("users").doc(currentUserId).update({
+            lastActive: firebase.firestore.FieldValue.serverTimestamp()
+        });
+    }
+}, 60000);
+
+// Limpa usuários inativos após 2 minutos
+function cleanInactiveUsers() {
+    if (!currentRoomId) return;
+    
+    const cutoff = new Date(Date.now() - 120000);
+    
+    db.collection("rooms").doc(currentRoomId).collection("users")
+        .where("lastActive", "<", cutoff)
+        .get()
+        .then((snapshot) => {
+            snapshot.forEach((doc) => {
+                doc.ref.delete();
+            });
+        });
+}
+
+setInterval(cleanInactiveUsers, 30000);
