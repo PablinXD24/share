@@ -14,6 +14,7 @@ body {
 h1 {
     text-align: center;
     color: #e50914;
+    margin-bottom: 20px;
 }
 
 .controls {
@@ -69,7 +70,7 @@ button:hover {
 }
 
 #videoPlayer {
-    display: none; /* Inicialmente escondido */
+    display: none;
 }
 
 .sync-status {
@@ -84,4 +85,46 @@ button:hover {
     text-align: center;
     color: #aaa;
     font-style: italic;
+    margin-top: 20px;
+}
+
+.user-section {
+    background: #2a2a2a;
+    padding: 15px;
+    border-radius: 8px;
+    margin-top: 20px;
+}
+
+.user-section h3 {
+    margin-top: 0;
+    margin-bottom: 10px;
+}
+
+.user-list {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
+.user {
+    padding: 8px;
+    background: #333;
+    border-radius: 4px;
+}
+
+.notification {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    background: rgba(0, 0, 0, 0.8);
+    color: white;
+    padding: 10px 20px;
+    border-radius: 5px;
+    z-index: 1000;
+    animation: fadeIn 0.3s;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
 }
