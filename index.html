@@ -1,13 +1,38 @@
 <!DOCTYPE html>
-<html>
+<html lang="pt-BR">
 <head>
-    <title>Compartilhamento de Tela Canva-style</title>
-    <script src="https://unpkg.com/peerjs@1.4.7/dist/peerjs.min.js"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sala de Cinema Virtual</title>
+    <link rel="stylesheet" href="style.css">
+    <!-- Firebase -->
+    <script src="https://www.gstatic.com/firebasejs/9.6.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.0/firebase-firestore-compat.js"></script>
 </head>
 <body>
-    <button id="shareScreen">Compartilhar Tela</button>
-    <video id="localScreen" autoplay muted></video>
-    <video id="remoteScreen" autoplay></video>
+    <div class="container">
+        <h1>🎬 Sala de Cinema Virtual</h1>
+        
+        <div class="room-controls">
+            <input type="text" id="roomId" placeholder="ID da Sala">
+            <button id="createRoom">Criar Sala</button>
+            <button id="joinRoom">Entrar na Sala</button>
+        </div>
+
+        <div class="video-link">
+            <input type="text" id="videoLink" placeholder="Cole o link do vídeo (YouTube, MP4, etc)">
+            <button id="loadVideo">Carregar Vídeo</button>
+        </div>
+
+        <div class="video-container">
+            <iframe id="ytPlayer" width="560" height="315" frameborder="0" allowfullscreen></iframe>
+            <!-- Fallback para vídeos MP4 -->
+            <video id="videoPlayer" controls></video>
+        </div>
+
+        <div class="status" id="status">Desconectado</div>
+    </div>
+
     <script src="script.js"></script>
 </body>
 </html>
