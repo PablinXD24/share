@@ -1,67 +1,144 @@
-body {
-    font-family: 'Arial', sans-serif;
-    background: #1a1a1a;
-    color: white;
+:root {
+    --primary: #ff4757;
+    --primary-dark: #e84118;
+    --secondary: #2f3542;
+    --dark: #1e272e;
+    --light: #f1f2f6;
+    --gray: #a4b0be;
+    --success: #2ed573;
+    --card-bg: #2d3436;
+}
+
+* {
     margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Poppins', sans-serif;
+    background: linear-gradient(135deg, #1e272e, #2f3640);
+    color: var(--light);
+    min-height: 100vh;
     padding: 20px;
 }
 
-.container {
-    max-width: 800px;
+.app-container {
+    max-width: 1000px;
     margin: 0 auto;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
 }
 
-h1 {
+.app-header {
     text-align: center;
-    color: #e50914;
-    margin-bottom: 20px;
+    padding: 20px 0;
 }
 
-.controls {
-    background: #2a2a2a;
-    padding: 15px;
-    border-radius: 8px;
-    margin-bottom: 20px;
+.app-header h1 {
+    font-size: 2.5rem;
+    font-weight: 700;
+    color: white;
+    margin-bottom: 5px;
 }
 
-.room-controls, .video-controls {
+.logo-icon {
+    font-size: 2.8rem;
+    vertical-align: middle;
+    margin-right: 10px;
+}
+
+.app-subtitle {
+    color: var(--gray);
+    font-size: 1rem;
+}
+
+.card {
+    background-color: var(--card-bg);
+    border-radius: 12px;
+    padding: 20px;
+    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2);
+}
+
+.section-title {
+    font-size: 1.2rem;
+    margin-bottom: 15px;
+    color: white;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.input-group {
     display: flex;
     gap: 10px;
-    margin-bottom: 10px;
-    flex-wrap: wrap;
+    margin-bottom: 15px;
 }
 
-input {
+.input-group input {
     flex-grow: 1;
-    padding: 10px;
+    padding: 12px 15px;
     border: none;
-    border-radius: 4px;
-    background: #333;
+    border-radius: 8px;
+    background-color: rgba(255, 255, 255, 0.1);
     color: white;
+    font-size: 1rem;
+    transition: all 0.3s;
 }
 
-button {
-    padding: 10px 15px;
-    background: #e50914;
-    color: white;
+.input-group input:focus {
+    outline: none;
+    background-color: rgba(255, 255, 255, 0.15);
+    box-shadow: 0 0 0 2px var(--primary);
+}
+
+.button-group {
+    display: flex;
+    gap: 10px;
+}
+
+.btn {
+    padding: 12px 20px;
     border: none;
-    border-radius: 4px;
+    border-radius: 8px;
+    font-weight: 600;
     cursor: pointer;
-    transition: background 0.3s;
+    transition: all 0.3s;
+    font-size: 0.95rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
 }
 
-button:hover {
-    background: #b2070f;
+.btn.primary {
+    background-color: var(--primary);
+    color: white;
+}
+
+.btn.primary:hover {
+    background-color: var(--primary-dark);
+    transform: translateY(-2px);
+}
+
+.btn.secondary {
+    background-color: var(--secondary);
+    color: white;
+}
+
+.btn.secondary:hover {
+    background-color: #3a4756;
+    transform: translateY(-2px);
 }
 
 .video-container {
     position: relative;
     width: 100%;
     aspect-ratio: 16/9;
-    background: black;
-    border-radius: 8px;
+    background-color: black;
+    border-radius: 12px;
     overflow: hidden;
-    margin-bottom: 20px;
 }
 
 #ytPlayer, #videoPlayer {
@@ -73,58 +150,131 @@ button:hover {
     display: none;
 }
 
-.sync-status {
-    width: 100%;
-    text-align: center;
-    font-size: 14px;
-    color: #4CAF50;
-    padding: 5px;
+.sync-indicator {
+    position: absolute;
+    bottom: 15px;
+    right: 15px;
+    background-color: rgba(0, 0, 0, 0.7);
+    padding: 8px 12px;
+    border-radius: 20px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.9rem;
 }
 
-.status {
-    text-align: center;
-    color: #aaa;
-    font-style: italic;
-    margin-top: 20px;
+.sync-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background-color: var(--success);
 }
 
-.user-section {
-    background: #2a2a2a;
-    padding: 15px;
-    border-radius: 8px;
-    margin-top: 20px;
+.sync-indicator.syncing .sync-dot {
+    background-color: #ffa502;
+    animation: pulse 1.5s infinite;
 }
 
-.user-section h3 {
-    margin-top: 0;
-    margin-bottom: 10px;
+@keyframes pulse {
+    0% { opacity: 1; }
+    50% { opacity: 0.3; }
+    100% { opacity: 1; }
+}
+
+.users-section {
+    margin-top: 10px;
 }
 
 .user-list {
     display: flex;
     flex-direction: column;
-    gap: 5px;
+    gap: 10px;
+    max-height: 200px;
+    overflow-y: auto;
+    padding-right: 5px;
+}
+
+.user-list::-webkit-scrollbar {
+    width: 6px;
+}
+
+.user-list::-webkit-scrollbar-track {
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 3px;
+}
+
+.user-list::-webkit-scrollbar-thumb {
+    background: var(--primary);
+    border-radius: 3px;
 }
 
 .user {
-    padding: 8px;
-    background: #333;
-    border-radius: 4px;
+    background-color: rgba(255, 255, 255, 0.08);
+    padding: 12px 15px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    transition: all 0.3s;
+}
+
+.user:hover {
+    background-color: rgba(255, 255, 255, 0.12);
+    transform: translateX(3px);
+}
+
+.user::before {
+    content: "👤";
+    font-size: 1.1rem;
+}
+
+.empty-state {
+    color: var(--gray);
+    text-align: center;
+    padding: 20px;
+    font-style: italic;
+}
+
+.status-bar {
+    text-align: center;
+    padding: 10px;
+    color: var(--gray);
+    font-size: 0.9rem;
 }
 
 .notification {
     position: fixed;
     bottom: 20px;
     right: 20px;
-    background: rgba(0, 0, 0, 0.8);
+    background-color: var(--primary);
     color: white;
-    padding: 10px 20px;
-    border-radius: 5px;
+    padding: 12px 20px;
+    border-radius: 8px;
     z-index: 1000;
-    animation: fadeIn 0.3s;
+    animation: slideIn 0.3s forwards;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
 }
 
-@keyframes fadeIn {
-    from { opacity: 0; transform: translateY(10px); }
-    to { opacity: 1; transform: translateY(0); }
+@keyframes slideIn {
+    from { opacity: 0; transform: translateX(100%); }
+    to { opacity: 1; transform: translateX(0); }
+}
+
+/* Responsividade */
+@media (max-width: 768px) {
+    .app-header h1 {
+        font-size: 2rem;
+    }
+    
+    .input-group {
+        flex-direction: column;
+    }
+    
+    .button-group {
+        width: 100%;
+    }
+    
+    .btn {
+        width: 100%;
+    }
 }
