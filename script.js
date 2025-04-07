@@ -1,14 +1,14 @@
-// Configuração do Firebase
+// Configuração do Firebase (substitua com suas credenciais)
 const firebaseConfig = {
-    apiKey: "AIzaSyCP-fUHlTE5CokRx26r6MKUuxqxHuAJXiI",
-    authDomain: "salacinemavirtual.firebaseapp.com",
-    projectId: "salacinemavirtual",
-    storageBucket: "salacinemavirtual.firebasestorage.app",
-    messagingSenderId: "452146827346",
-    appId: "1:452146827346:web:df92c4008cf9e0f3218f8b"
-  };
+    apiKey: "SUA_API_KEY",
+    authDomain: "SEU_PROJETO.firebaseapp.com",
+    projectId: "SEU_PROJETO",
+    storageBucket: "SEU_PROJETO.appspot.com",
+    messagingSenderId: "SEU_SENDER_ID",
+    appId: "SEU_APP_ID"
+};
 
-// Inicialização
+// Inicialização do Firebase
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 
@@ -17,7 +17,11 @@ let currentRoomId = null;
 let isSyncing = false;
 let lastSyncTime = 0;
 let ytPlayer = null;
-let currentVideoType = null; // 'youtube' ou 'mp4'
+let currentVideoType = null;
+let currentUsers = [];
+let roomUnsubscribe = null;
+let usersUnsubscribe = null;
+let currentUserId = null;
 
 // Elementos DOM
 const elements = {
@@ -29,12 +33,15 @@ const elements = {
     videoPlayer: document.getElementById('videoPlayer'),
     ytPlayerContainer: document.getElementById('ytPlayer'),
     status: document.getElementById('status'),
-    syncStatus: document.getElementById('syncStatus')
+    syncStatus: document.getElementById('syncStatus'),
+    userList: document.getElementById('userList')
 };
 
 // Inicialização do Player do YouTube
 function onYouTubeIframeAPIReady() {
     ytPlayer = new YT.Player('ytPlayer', {
+        height: '100%',
+        width: '100%',
         events: {
             'onReady': onPlayerReady,
             'onStateChange': onPlayerStateChange
@@ -43,8 +50,31 @@ function onYouTubeIframeAPIReady() {
 }
 
 function onPlayerReady() {
-    console.log("YouTube Player pronto");
-    updateStatus("YouTube Player carregado");
+    updateStatus("YouTube Player pronto");
+}
+
+function onPlayerStateChange(event) {
+    if (!currentRoomId || isSyncing) return;
+    
+    isSyncing = true;
+    elements.syncStatus.textContent = "Sincronizando...";
+    
+    if (event.data == YT.PlayerState.PLAYING) {
+        db.collection("rooms").doc(currentRoomId).update({
+            isPlaying: true,
+            lastUpdated: firebase.firestore.FieldValue.serverTimestamp()
+        });
+    } else if (event.data == YT.PlayerState.PAUSED) {
+        db.collection("rooms").doc(currentRoomId).update({
+            isPlaying: false,
+            lastUpdated: firebase.firestore.FieldValue.serverTimestamp()
+        });
+    }
+    
+    setTimeout(() => {
+        isSyncing = false;
+        elements.syncStatus.textContent = "Sincronizado";
+    }, 1000);
 }
 
 // Controles de Sala
@@ -55,35 +85,61 @@ elements.loadVideo.addEventListener('click', loadVideoHandler);
 // Funções principais
 function createRoom() {
     currentRoomId = generateRoomId();
+    currentUserId = generateUserId();
+    elements.roomId.value = currentRoomId;
+    
     db.collection("rooms").doc(currentRoomId).set({
         videoURL: "",
         videoType: "",
         isPlaying: false,
         currentTime: 0,
         lastUpdated: firebase.firestore.FieldValue.serverTimestamp()
+    }).then(() => {
+        addUserToRoom();
+        updateStatus(`Sala criada: ${currentRoomId}`);
+        syncRoom(currentRoomId);
     });
-    elements.roomId.value = currentRoomId;
-    updateStatus(`Sala criada: ${currentRoomId}`);
-    syncRoom(currentRoomId);
 }
 
 function joinRoom() {
     currentRoomId = elements.roomId.value.trim();
+    currentUserId = generateUserId();
+    
     if (!currentRoomId) return alert("Digite um ID de sala!");
-    updateStatus(`Conectando à sala: ${currentRoomId}`);
-    syncRoom(currentRoomId);
+    
+    db.collection("rooms").doc(currentRoomId).get().then((doc) => {
+        if (!doc.exists) return alert("Sala não encontrada!");
+        
+        addUserToRoom();
+        updateStatus(`Conectado à sala: ${currentRoomId}`);
+        syncRoom(currentRoomId);
+    });
+}
+
+function addUserToRoom() {
+    const userName = `Usuário ${Math.floor(Math.random() * 1000)}`;
+    
+    db.collection("rooms").doc(currentRoomId).collection("users").doc(currentUserId).set({
+        id: currentUserId,
+        name: userName,
+        joinedAt: firebase.firestore.FieldValue.serverTimestamp()
+    });
 }
 
 function loadVideoHandler() {
     const videoURL = elements.videoLink.value.trim();
     if (!videoURL) return alert("Digite um link válido!");
 
+    if (!isValidVideoUrl(videoURL)) {
+        return alert("Link de vídeo inválido! Use YouTube ou links MP4 diretos.");
+    }
+
     if (isYouTubeVideo(videoURL)) {
-        loadYouTubeVideo(videoURL);
         currentVideoType = 'youtube';
+        loadYouTubeVideo(videoURL);
     } else {
-        loadMP4Video(videoURL);
         currentVideoType = 'mp4';
+        loadMP4Video(videoURL);
     }
 
     if (currentRoomId) {
@@ -97,11 +153,15 @@ function loadVideoHandler() {
 
 // Sincronização
 function syncRoom(roomId) {
-    db.collection("rooms").doc(roomId).onSnapshot((doc) => {
+    // Cancela listeners anteriores
+    if (roomUnsubscribe) roomUnsubscribe();
+    if (usersUnsubscribe) usersUnsubscribe();
+
+    // Listener para dados da sala
+    roomUnsubscribe = db.collection("rooms").doc(roomId).onSnapshot((doc) => {
         const data = doc.data();
         if (!data) return;
 
-        // Evita loops de sincronização
         if (isSyncing) return;
         
         // Sincroniza o vídeo
@@ -114,9 +174,9 @@ function syncRoom(roomId) {
             }
         }
 
-        // Sincroniza o estado de reprodução
+        // Sincroniza play/pause
         const now = Date.now();
-        if (now - lastSyncTime > 1000) { // Limite de 1s entre sincronizações
+        if (now - lastSyncTime > 1000) {
             if (data.isPlaying) {
                 if (currentVideoType === 'mp4' && elements.videoPlayer.paused) {
                     playVideo();
@@ -133,11 +193,34 @@ function syncRoom(roomId) {
             lastSyncTime = now;
         }
     });
+
+    // Listener para usuários
+    usersUnsubscribe = db.collection("rooms").doc(roomId).collection("users")
+        .onSnapshot((snapshot) => {
+            const updatedUsers = [];
+            snapshot.forEach((doc) => {
+                updatedUsers.push(doc.data());
+            });
+            
+            // Verifica novos usuários
+            updatedUsers.forEach(user => {
+                if (!currentUsers.some(u => u.id === user.id)) {
+                    showNotification(`${user.name} entrou na sala`);
+                }
+            });
+            
+            currentUsers = updatedUsers;
+            updateUserList(updatedUsers);
+        });
 }
 
 // Funções auxiliares
 function generateRoomId() {
     return Math.random().toString(36).substring(2, 8);
+}
+
+function generateUserId() {
+    return 'user_' + Math.random().toString(36).substring(2, 9);
 }
 
 function updateStatus(message) {
@@ -147,6 +230,19 @@ function updateStatus(message) {
 
 function isYouTubeVideo(url) {
     return url.includes("youtube.com") || url.includes("youtu.be");
+}
+
+function isValidVideoUrl(url) {
+    if (url.includes("youtube.com") || url.includes("youtu.be")) {
+        return extractYouTubeId(url) !== null;
+    }
+    return /\.(mp4|webm|ogg)$/i.test(url);
+}
+
+function extractYouTubeId(url) {
+    const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/;
+    const match = url.match(regExp);
+    return (match && match[2].length === 11) ? match[2] : null;
 }
 
 function loadYouTubeVideo(url) {
@@ -169,13 +265,6 @@ function loadMP4Video(url) {
     updateStatus("Carregando vídeo MP4...");
 }
 
-function extractYouTubeId(url) {
-    const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/;
-    const match = url.match(regExp);
-    return (match && match[2].length === 11) ? match[2] : null;
-}
-
-// Controles de vídeo
 function playVideo() {
     elements.videoPlayer.play().catch(e => {
         console.error("Erro ao dar play:", e);
@@ -185,6 +274,23 @@ function playVideo() {
 
 function pauseVideo() {
     elements.videoPlayer.pause();
+}
+
+function showNotification(message) {
+    const notification = document.createElement('div');
+    notification.className = 'notification';
+    notification.textContent = message;
+    document.body.appendChild(notification);
+    
+    setTimeout(() => {
+        notification.remove();
+    }, 3000);
+}
+
+function updateUserList(users) {
+    elements.userList.innerHTML = users.map(user => 
+        `<div class="user">${user.name}</div>`
+    ).join('');
 }
 
 // Event listeners para vídeo MP4
@@ -222,12 +328,17 @@ elements.videoPlayer.addEventListener('pause', () => {
 
 // Atualização periódica do tempo
 setInterval(() => {
-    if (!currentRoomId || isSyncing) return;
+    if (!currentRoomId || isSyncing || currentVideoType !== 'mp4' || elements.videoPlayer.paused) return;
     
-    if (currentVideoType === 'mp4' && !elements.videoPlayer.paused) {
-        db.collection("rooms").doc(currentRoomId).update({
-            currentTime: elements.videoPlayer.currentTime,
-            lastUpdated: firebase.firestore.FieldValue.serverTimestamp()
-        });
-    }
+    db.collection("rooms").doc(currentRoomId).update({
+        currentTime: elements.videoPlayer.currentTime,
+        lastUpdated: firebase.firestore.FieldValue.serverTimestamp()
+    });
 }, 3000);
+
+// Remove usuário ao sair da página
+window.addEventListener('beforeunload', () => {
+    if (currentRoomId && currentUserId) {
+        db.collection("rooms").doc(currentRoomId).collection("users").doc(currentUserId).delete();
+    }
+});
