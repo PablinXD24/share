@@ -1,23 +1,29 @@
-const shareButton = document.getElementById('shareScreen');
-const screenView = document.getElementById('screenView');
+// Configuração do PeerJS (cada usuário tem um ID único)
+const peer = new Peer();
 
-shareButton.addEventListener('click', async () => {
+peer.on('open', (id) => {
+    console.log("Seu ID PeerJS:", id);
+});
+
+// Captura e compartilha a tela
+document.getElementById('shareScreen').addEventListener('click', async () => {
     try {
-        // Solicita permissão para capturar a tela
-        const stream = await navigator.mediaDevices.getDisplayMedia({
-            video: true,
-            audio: false // Pode ser true se quiser compartilhar áudio também
+        const stream = await navigator.mediaDevices.getDisplayMedia({ video: true });
+        document.getElementById('localScreen').srcObject = stream;
+
+        // Quando alguém quiser assistir, chamamos esta função
+        peer.on('call', (call) => {
+            call.answer(stream); // Envia a tela para quem pediu
         });
-        
-        // Exibe a tela compartilhada no elemento <video>
-        screenView.srcObject = stream;
-        
-        // Quando o usuário para o compartilhamento
-        stream.getVideoTracks()[0].onended = () => {
-            alert("Compartilhamento encerrado!");
-        };
     } catch (err) {
         console.error("Erro ao compartilhar tela:", err);
-        alert("Erro ao compartilhar tela!");
     }
 });
+
+// Função para assistir a tela de alguém
+function watchScreen(peerId) {
+    const call = peer.call(peerId, stream); // "stream" deve vir do compartilhador
+    call.on('stream', (remoteStream) => {
+        document.getElementById('remoteScreen').srcObject = remoteStream;
+    });
+}
