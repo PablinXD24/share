@@ -1,12 +1,12 @@
 // Configuração do Firebase (substitua com suas credenciais)
 const firebaseConfig = {
-    apiKey: "SUA_API_KEY",
-    authDomain: "SEU_PROJETO.firebaseapp.com",
-    projectId: "SEU_PROJETO",
-    storageBucket: "SEU_PROJETO.appspot.com",
-    messagingSenderId: "SEU_SENDER_ID",
-    appId: "SEU_APP_ID"
-};
+    apiKey: "AIzaSyCP-fUHlTE5CokRx26r6MKUuxqxHuAJXiI",
+    authDomain: "salacinemavirtual.firebaseapp.com",
+    projectId: "salacinemavirtual",
+    storageBucket: "salacinemavirtual.firebasestorage.app",
+    messagingSenderId: "452146827346",
+    appId: "1:452146827346:web:df92c4008cf9e0f3218f8b"
+  };
 
 // Inicialização do Firebase
 firebase.initializeApp(firebaseConfig);
