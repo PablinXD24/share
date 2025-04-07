@@ -3,46 +3,65 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sala de Cinema Virtual</title>
+    <title>CineSync - Sala de Cinema Virtual</title>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap">
     <link rel="stylesheet" href="style.css">
     <!-- Firebase -->
     <script src="https://www.gstatic.com/firebasejs/9.6.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.0/firebase-firestore-compat.js"></script>
     <!-- YouTube API -->
-    <script src="https://www.youtube.com/iframe_api"></script>
+    <script>
+        var tag = document.createElement('script');
+        tag.src = "https://www.youtube.com/iframe_api";
+        var firstScriptTag = document.getElementsByTagName('script')[0];
+        firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
+    </script>
 </head>
 <body>
-    <div class="container">
-        <h1>🎬 Sala de Cinema Virtual</h1>
-        
-        <div class="controls">
-            <div class="room-controls">
-                <input type="text" id="roomId" placeholder="ID da Sala">
-                <button id="createRoom">Criar Sala</button>
-                <button id="joinRoom">Entrar na Sala</button>
+    <div class="app-container">
+        <header class="app-header">
+            <h1><span class="logo-icon">🎬</span> CineSync</h1>
+            <p class="app-subtitle">Assista vídeos em sincronia com amigos</p>
+        </header>
+
+        <main class="app-content">
+            <div class="room-controls card">
+                <h2 class="section-title">Controles da Sala</h2>
+                <div class="input-group">
+                    <input type="text" id="roomId" placeholder="Digite o ID da sala">
+                    <div class="button-group">
+                        <button id="createRoom" class="btn primary">Criar Sala</button>
+                        <button id="joinRoom" class="btn secondary">Entrar</button>
+                    </div>
+                </div>
             </div>
 
-            <div class="video-controls">
-                <input type="text" id="videoLink" placeholder="Cole o link do YouTube ou MP4">
-                <button id="loadVideo">Carregar Vídeo</button>
-                <div class="sync-status" id="syncStatus">Pronto</div>
+            <div class="video-container card">
+                <div id="ytPlayer"></div>
+                <video id="videoPlayer" controls></video>
+                <div class="sync-indicator" id="syncStatus">
+                    <div class="sync-dot"></div>
+                    <span>Pronto</span>
+                </div>
             </div>
-        </div>
 
-        <div class="video-container">
-            <!-- Player do YouTube -->
-            <div id="ytPlayer"></div>
-            
-            <!-- Player para vídeos MP4 -->
-            <video id="videoPlayer" controls></video>
-        </div>
+            <div class="video-controls card">
+                <h2 class="section-title">Controles do Vídeo</h2>
+                <div class="input-group">
+                    <input type="text" id="videoLink" placeholder="Cole o link do YouTube ou MP4">
+                    <button id="loadVideo" class="btn primary">Carregar</button>
+                </div>
+            </div>
 
-        <div class="user-section">
-            <h3>Usuários na Sala</h3>
-            <div class="user-list" id="userList"></div>
-        </div>
+            <div class="users-section card">
+                <h2 class="section-title">👥 Usuários na Sala <span id="userCount">0</span></h2>
+                <div class="user-list" id="userList">
+                    <div class="empty-state">Nenhum usuário na sala</div>
+                </div>
+            </div>
+        </main>
 
-        <div class="status" id="status">Desconectado</div>
+        <div class="status-bar" id="status">Conecte-se a uma sala para começar</div>
     </div>
 
     <script src="script.js"></script>
